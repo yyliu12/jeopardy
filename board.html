@@ -1,0 +1,170 @@
+<html>
+
+<head>
+    <style>
+        html, body {
+            margin: 0;
+            padding: 0;
+            height: 100%;
+            width: 100%;
+        }
+        /* Table styles */
+        #jeopardy {
+            border-collapse: collapse;
+            width: 100%;
+            height: 100%;
+            background-color: #010a78;
+
+            font-family: "Arial";
+
+            table-layout: fixed;
+            
+        }
+
+        #jeopardy th,
+        #jeopardy td {
+            border: 2px solid black;
+            padding: 10px;
+            text-align: center;
+            font-size: 20px;
+
+            width: calc(100vw / 7);
+        }
+
+        #jeopardy tr:nth-of-type(1) > td {
+            color: white;
+        }
+
+        #jeopardy tr:not(:first-child) > td {
+            height: 16vh;
+        }
+
+        #jeopardy tr > td {
+            color: #c39143;
+            font-size: 20px;
+        }
+
+        #jeopardy th {
+            background-color: #010a78;
+            /* Jeopardy! yellow */
+            color: black;
+            font-weight: bold;
+        }
+
+        #jeopardy td {
+            background-color: #010a78;
+            color: black;
+            font-weight: bold;
+        }
+
+        #clue {
+            /* jeopardy clue background */
+            background-color: #010a78;
+            color: white;
+            height: 100%;
+            width: 100%;
+
+            position: absolute;
+
+            display: grid;
+            place-items: center;
+        }
+
+        #clueText {
+            font-size: 30px;
+            font-family: "Arial";
+            width: 50vw;
+            text-align: center;
+        }
+    </style>
+</head>
+
+<body>
+    <div id="clue"><p id="clueText">this is a sample clue text</p></div>
+
+    <table id="jeopardy">
+
+    </table>
+    <!-- socket.io -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/socket.io/4.6.1/socket.io.min.js"></script>
+    <script src="common.js"></script>
+    <script>
+        function genClueTransform(scaleX, scaleY, translateX, translateY) {
+            return `translate(${translateX}px, ${translateY}px) scale(${scaleX}, ${scaleY})`;
+        }
+        function animClue(k1, k2, text) {
+            var boundingBox = getClueElement(document.getElementById("jeopardy"), k1, k2).getBoundingClientRect();
+            var clue = document.getElementById("clue");
+            document.getElementById("clueText").innerHTML = text;
+
+
+            let scaleX = boundingBox.width / window.innerWidth;
+            let scaleY = boundingBox.height / window.innerHeight;
+            let translateX = -(window.innerWidth / 2) + (boundingBox.left + boundingBox.right) / 2;
+            let translateY = -(window.innerHeight / 2) + (boundingBox.top + boundingBox.bottom) / 2;
+
+            clue.style.transform = genClueTransform(scaleX, scaleY, translateX, translateY);
+            
+            showClue();
+
+            let animProgress = 0;
+            function animate() {
+                if (animProgress >= 1) {
+                    clue.style.transform = genClueTransform(1, 1, 0, 0);
+                    return;
+                }
+                var newScaleX = (1 * (animProgress)) + (scaleX * (1 - animProgress));
+                var newScaleY = (1 * (animProgress)) + (scaleY * (1 - animProgress));
+                var newTranslateX = (0 * (animProgress)) + (translateX * (1 - animProgress));
+                var newTranslateY = (0 * (animProgress)) + (translateY * (1 - animProgress));
+
+                clue.style.transform = genClueTransform(newScaleX, newScaleY, newTranslateX, newTranslateY);
+                animProgress += 0.03;
+                requestAnimationFrame(animate);
+            }
+            requestAnimationFrame(animate);
+
+        }
+
+        function hideClue() {
+            document.getElementById("clue").style.display = "none";
+        }
+
+        function showClue() {
+            document.getElementById("clue").style.display = "grid";
+        }
+
+        function renderPicked(data) {
+            for (var pair in data) {
+                var pairData = data[pair];
+                var element = getClueElement(document.getElementById("jeopardy"), pairData[0], pairData[1]);
+                element.innerHTML = "";
+            }
+        }
+        hideClue();
+        
+
+        var socket = io();
+        socket.on("clue", (data) => {
+            animClue(data.k1, data.k2, data.text);
+        });
+
+        socket.on("game", (data) => {
+            renderBoard(data, document.getElementById("jeopardy"), false, () => {});
+        });
+
+        socket.on("picked", (data) => {
+            renderPicked(data);
+        });
+
+        socket.on("clearclue", () => {
+            hideClue();
+        });
+
+        socket.emit("setup", { type: "board", roomid: 1 });
+
+    </script>
+
+</body>
+
+</html>

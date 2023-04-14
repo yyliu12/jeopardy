@@ -1,0 +1,38 @@
+<html>
+<head>
+</head>
+<body>
+    <div id="name">
+        <input type="text" id="nameInput" placeholder="Enter your name">
+        <button id="nameButton">Submit</button>
+    </div>
+    <div id="buzzer">
+        <button id="buzz">Buzz</button>
+    </div>
+    <div id="disconnection" style="display: none;">
+        Oops! You have been disconnected!
+    </div>
+    <!-- socket.io -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/socket.io/4.6.1/socket.io.min.js"></script>
+
+    <script>
+        var socket = io();
+        
+        socket.emit("setup", {type: "player", roomid: 1});
+
+        document.getElementById("nameButton").addEventListener("click", () => {
+            socket.emit("name", {name: document.getElementById("nameInput").value});
+            document.getElementById("name").style.display = "none";
+        });
+
+        document.getElementById("buzz").addEventListener("click", () => {
+            socket.emit("buzz");
+        });
+
+        socket.on("disconnect", () => {
+            document.getElementById("disconnection").style.display = "block";
+        });
+    </script>
+
+</body>
+</html>
