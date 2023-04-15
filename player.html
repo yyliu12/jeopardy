@@ -6,8 +6,14 @@
         <input type="text" id="nameInput" placeholder="Enter your name">
         <button id="nameButton">Submit</button>
     </div>
-    <div id="buzzer">
+    <div id="buzzer" style="display: none;">
         <button id="buzz">Buzz</button>
+    </div>
+    <div id="fjWager" style="display: none;">
+        <input id="fjWagerInput" placeholder="Enter your wager; there is no need to press [enter]">
+    </div>
+    <div id="fjResponse" style="display: none;">
+        <input id="fjResponseInput" placeholder="Enter your response; there is no need to press [enter]">
     </div>
     <div id="disconnection" style="display: none;">
         Oops! You have been disconnected!
@@ -23,7 +29,53 @@
         document.getElementById("nameButton").addEventListener("click", () => {
             socket.emit("name", {name: document.getElementById("nameInput").value});
             document.getElementById("name").style.display = "none";
+            document.getElementById("buzzer").style.display = "block";
         });
+
+        document.getElementById("fjWagerInput").addEventListener("keyup", () => {
+            var num = document.getElementById("fjWagerInput").value;
+            var invalid = false;
+            if (isNaN(new Number(num))) {
+                alert("Your wager must be a properly formatted number.");
+                invalid = true;
+            }
+            if (num % 1 != 0) {
+                alert("Your wager must be a whole number.");
+                invalid = true;
+            }
+            if (num < 0) {
+                alert("Your wager must be a positive number.");
+                invalid = true;
+            }
+            if (invalid) {
+                document.getElementById("fjWagerInput").value = "";
+                return;
+            }
+            socket.emit("fjWager", {wager: num});
+        });
+
+        document.getElementById("fjResponseInput").addEventListener("keyup", () => {
+            socket.emit("fjResponse", {response: document.getElementById("fjResponseInput").value});
+        });
+
+        socket.on("fjinit", (data) => {
+            document.getElementById("buzzer").style.display = "none";
+            document.getElementById("fjWager").style.display = "block";
+        });
+
+        socket.on("fjclue", (data) => {
+             document.getElementById("fjWager").style.display = "none";
+        });
+
+        socket.on("fjstart", () => {
+            document.getElementById("fjWager").style.display = "none";
+            document.getElementById("fjResponse").style.display = "block";
+        });
+
+        socket.on("fjend", () => {
+            document.getElementById("fjResponse").style.display = "none";
+        });
+
 
         document.getElementById("buzz").addEventListener("click", () => {
             socket.emit("buzz");
@@ -32,6 +84,8 @@
         socket.on("disconnect", () => {
             document.getElementById("disconnection").style.display = "block";
         });
+
+        socket.on("fjWagerInvalid", (data) => {alert(data); document.getElementById("fjWagerInput").value = "";});
     </script>
 
 </body>

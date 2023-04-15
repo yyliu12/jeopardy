@@ -37,6 +37,15 @@ class Game {
         this.buzzState = "not-armed";
         this.buzzedPlayer = null;
         this.clueValue = 0;
+        this.wrongRingIn = [];
+        this.round = 1;
+
+        this.fjWagers = {};
+        this.fjResponse = {};
+        this.fjStarted = false;
+        this.fjClueShown = false;
+        this.fjEnded = false;
+
     }
 
     setup(socket) {
@@ -66,11 +75,27 @@ class Game {
         });
 
         socket.on("buzz", (data) => {
-            if (this.buzzState == "armed" && this.buzzedPlayer == null) {
+            if (this.buzzState == "armed" && this.buzzedPlayer == null && !this.wrongRingIn.includes(socket.data.id)) {
                 this.buzzState = "buzzed";
                 this.buzzedPlayer = socket.data.id;
                 this.sendBuzzerState();
             }
+        });
+
+        socket.on("fjWager", (data) => {
+            if (!this.fjStarted || this.fjClueShown || this.fjEnded) {return;}
+            if (data.wager > this.players[socket.data.id].score) {
+                socket.emit("fjWagerInvalid", "You can't wager more than you have!");
+                return;
+            }
+            this.fjWagers[socket.data.id] = data.wager;
+            this.sendFjInfo();
+        });
+
+        socket.on("fjResponse", (data) => {
+            if (!this.fjStarted || this.fjEnded) {return;}
+            this.fjResponse[socket.data.id] = data.response;
+            this.sendFjInfo();
         });
 
     }
@@ -78,7 +103,7 @@ class Game {
     setupHost(socket) {
         let gameId = this.id;
         let game = this;
-        socket.emit("game", gameData.jeopardyBoard);
+        
         socket.join("host" + this.id);
         socket.join("game" + this.id);
         
@@ -123,6 +148,9 @@ class Game {
 
         socket.on("buzzerstate", (data) => {
             this.buzzState = data.state;
+            if (data.state == "not-armed") {
+                this.wrongRingIn = [];
+            }
             this.buzzedPlayer = null;
             this.sendBuzzerState();
         });
@@ -132,21 +160,56 @@ class Game {
                 this.players[this.buzzedPlayer].score += this.clueValue;
             } else {
                 this.players[this.buzzedPlayer].score -= this.clueValue;
+                this.wrongRingIn.push(this.buzzedPlayer);
             }
 
             this.sendScores();
+        });
+
+        socket.on("setround", (data) => {
+            this.round = data;
+            this.sendRound();
+
+            io.to("game" + this.id).emit("round", data);
+        });
+
+        socket.on("fjshowclue", (data) => {
+            this.fjClueShown = true;
+            io.to("board" + this.id).emit("fjclue", gameData.finalJeopardy.category + ": " + gameData.finalJeopardy.text);
+            io.to("player" + this.id).emit("fjclue");
+        });
+
+        socket.on("fjstart", (data) => {
+            this.fjStarted = true;
+            io.to("game" + this.id).emit("fjstart");
+        });
+
+        socket.on("fjend", (data) => {
+            this.fjEnded = true;
+            io.to("game" + this.id).emit("fjend");
+        });
+
+        socket.on("finalscores", (data) => {
+            io.to("board" + this.id).emit("finalscores", {
+                ...data,
+                name: this.players[data.id].name,
+                score: this.players[data.id].score,
+                wager: this.fjWagers[data.id],
+                response: this.fjResponse[data.id]
+            });
         });
 
 
         game.sendScores();
         game.sendBuzzerState();
         game.sendPicked();
+        this.sendRound();
     }
 
     setupBoard(socket, id) {
         socket.join("board" + this.id);
         socket.join("game" + this.id);
-        socket.emit("game", gameData.jeopardyBoard);
+        this.sendRound();
     }
 
     addPicked(k1, k2) {
@@ -169,6 +232,8 @@ class Game {
             });
         }
         io.to("game" + this.id).emit("scores", scores);
+
+        this.sendFjInfo();
     }
 
     sendBuzzerState() {
@@ -177,6 +242,40 @@ class Game {
             state: this.buzzState,
             player: this.players[this.buzzedPlayer] ? this.players[this.buzzedPlayer].name : "No player has buzzed"
         });
+    }
+
+    sendRound() {
+        var board;
+        if (this.round == 1) {
+            board = gameData.jeopardyBoard;
+        } else if (this.round == 2) {
+            board = gameData.doubleJeopardyBoard;
+        } else if (this.round == 3) {
+            io.to("game" + this.id).emit("fjinit");
+            this.fjStarted = true;
+            return;
+        }
+        this.fjStarted = false;
+        this.fjClueShown = false;
+        this.fjEnded = false;
+
+        io.to("board" + this.id).emit("game", board);
+        io.to("host" + this.id).emit("game", board);
+        this.picked = [];
+        this.sendPicked();
+    }
+
+    sendFjInfo() {
+        var fjInfo = [];
+        for (var id in this.players) {
+            fjInfo.push({
+                id: id,
+                name: this.players[id].name,
+                wager: this.fjWagers[id] ? this.fjWagers[id] : 0,
+                response: this.fjResponse[id] ? this.fjResponse[id] : "No response yet"
+            });
+        }
+        io.to("host" + this.id).emit("fjinfo", fjInfo);
     }
 }
 

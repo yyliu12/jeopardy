@@ -13,6 +13,7 @@ function createP(text) {
     return p;
 }
 function renderBoard(boardData, table, host, clueClick) {
+    emptyElement(table);
     var category_names = [];
     var rows = [];
     for (var i = 0; i < Object.entries(boardData[0].clues).length; i++) {

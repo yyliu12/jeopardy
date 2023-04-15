@@ -10,6 +10,27 @@
         #clue {
             font-family: monospace;
         }
+
+        #fjInfo {
+            table-layout: fixed;
+            width: 100%;
+        }
+
+        #fjInfo td:nth-child(1) {
+            width: 40%;
+        }
+
+        #fjInfo td:nth-child(2) {
+            width: 10%;
+        }
+
+        #fjInfo td:nth-child(3) {
+            width: 40%;
+        }
+
+        #fjInfo td:nth-child(4) {
+            width: 10%;
+        }
     </style>
 </head>
 
@@ -51,6 +72,24 @@
                 <button onclick="resetBuzzer();">Reset (r)</button>
             </div>
         </div>
+        <div class="row">
+            <div class="col-10">
+                <h6>Final Jeopardy!</h6>
+                <table id="fjInfo">
+
+                </table>
+            </div>
+            <div class="col-2">
+                <button onclick="showFJClue();">Show FJ Clue</button>
+                <button onclick="startFJ();">Start FJ</button>
+                <button onclick="endFJ();">End FJ</button>
+            </div>
+        </div>
+        <div class="row">
+            <button onclick="jeopardy();">Jeopardy</button>
+            <button onclick="doubleJeopardy();">Double Jeopardy</button>
+            <button onclick="finalJeopardy();">Final Jeopardy</button>
+        </div>
 
     </div>
 
@@ -60,6 +99,26 @@
     <script src="https://unpkg.com/tippy.js@6"></script>
     <script src="common.js"></script>
     <script>
+        function jeopardy() {
+            socket.emit("setround", 1);
+        }
+        function doubleJeopardy() {
+            socket.emit("setround", 2);
+        }
+
+        function finalJeopardy() {
+            socket.emit("setround", 3);
+        }
+        function startFJ() {
+            socket.emit("fjstart");
+        }
+        function endFJ() {
+            socket.emit("fjend");
+        }
+        function showFJClue() {
+            socket.emit("fjshowclue");
+        }
+
         function setBuzzerState(state) {
             socket.emit("buzzerstate", { state: state });
         }
@@ -150,7 +209,79 @@
                 row.appendChild(modifyCell);
 
 
+
                 // append the row to the table
+                table.appendChild(row);
+            }
+        });
+
+        socket.on("fjinfo", (data) => {
+            // for each entry in data...
+            var table = document.getElementById("fjInfo");
+            emptyElement(table);
+            for (var i = 0; i < data.length; i++) {
+                var entry = data[i];
+                var row = document.createElement("tr");
+
+                // name
+                var nameCell = document.createElement("td");
+                nameCell.innerHTML = entry.name;
+                row.appendChild(nameCell);
+
+                // wager
+                var wagerCell = document.createElement("td");
+                wagerCell.innerHTML = entry.wager;
+                row.appendChild(wagerCell);
+
+                // response
+                var responseCell = document.createElement("td");
+                responseCell.innerHTML = entry.response;
+                row.appendChild(responseCell);
+
+                // actions
+                var actionsCell = document.createElement("td");
+                var rightButton = document.createElement("button");
+                rightButton.innerHTML = "R";
+                rightButton.addEventListener("click", () => {
+                    socket.emit("fjadjudidcate", { id: entry.id, right: true });
+                });
+                actionsCell.appendChild(rightButton);
+                var wrongButton = document.createElement("button");
+                wrongButton.innerHTML = "W";
+                wrongButton.addEventListener("click", () => {
+                    socket.emit("fjadjudidcate", { id: entry.id, right: false });
+                });
+                actionsCell.appendChild(wrongButton);
+
+                // show name
+                var showNameButton = document.createElement("button");
+                showNameButton.innerHTML = "1";
+                showNameButton.addEventListener("click", () => {
+                    socket.emit("finalscores", { id: entry.id, action: "showname" });
+                });
+                actionsCell.appendChild(showNameButton);
+
+                // show response
+                var showResponseButton = document.createElement("button");
+                showResponseButton.innerHTML = "2";
+                showResponseButton.addEventListener("click", () => {
+                    socket.emit("finalscores", { id: entry.id, action: "showresponse" });
+                });
+                actionsCell.appendChild(showResponseButton);
+
+                // show wager
+                var showWagerButton = document.createElement("button");
+                showWagerButton.innerHTML = "3";
+                showWagerButton.addEventListener("click", () => {
+                    socket.emit("finalscores", { id: entry.id, action: "showwager" });
+                });
+                actionsCell.appendChild(showWagerButton);
+
+                row.appendChild(actionsCell);
+
+
+
+
                 table.appendChild(row);
             }
         });
@@ -174,7 +305,9 @@
             document.getElementById("buzzerPlayer").innerHTML = data.player;
         });
 
-        
+
+
+
 
         socket.emit("setup", { type: "host", roomid: 1 });
 
