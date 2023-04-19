@@ -1,7 +1,18 @@
 <html>
 <head>
+    <style>
+        body {
+            display: grid;
+            place-items: center;
+            /* jeopardy blue */
+            background-color: #010a78;
+        }
+
+        
+    </style>
 </head>
 <body>
+    <!-- name field-->
     <div id="name">
         <input type="text" id="nameInput" placeholder="Enter your name">
         <button id="nameButton">Submit</button>
@@ -15,26 +26,30 @@
     <div id="fjResponse" style="display: none;">
         <input id="fjResponseInput" placeholder="Enter your response; there is no need to press [enter]">
     </div>
-    <div id="disconnection" style="display: none;">
+    <div id="disconnection" style="display: none; color: white;">
         Oops! You have been disconnected!
     </div>
     <!-- socket.io -->
     <script src="https://cdnjs.cloudflare.com/ajax/libs/socket.io/4.6.1/socket.io.min.js"></script>
 
     <script>
+        // connect to server
         var socket = io();
-        
-        socket.emit("setup", {type: "player", roomid: 1});
 
+        // once user submits their name...
         document.getElementById("nameButton").addEventListener("click", () => {
+            // send name to server
             socket.emit("name", {name: document.getElementById("nameInput").value});
+            // show buzzer and hide name field
             document.getElementById("name").style.display = "none";
             document.getElementById("buzzer").style.display = "block";
         });
-
+        // when player updates wager field
         document.getElementById("fjWagerInput").addEventListener("keyup", () => {
+            // get vallue
             var num = document.getElementById("fjWagerInput").value;
             var invalid = false;
+            // run through checks
             if (isNaN(new Number(num))) {
                 alert("Your wager must be a properly formatted number.");
                 invalid = true;
@@ -51,41 +66,64 @@
                 document.getElementById("fjWagerInput").value = "";
                 return;
             }
+            // send to server
             socket.emit("fjWager", {wager: num});
         });
-
+        // when player updates their FJ response
         document.getElementById("fjResponseInput").addEventListener("keyup", () => {
+            // send to server
             socket.emit("fjResponse", {response: document.getElementById("fjResponseInput").value});
         });
-
+        // on FJ init (when host starts FJ, player can wager)
         socket.on("fjinit", (data) => {
             document.getElementById("buzzer").style.display = "none";
             document.getElementById("fjWager").style.display = "block";
         });
-
+        // when FJ clue is shown (you can't change your wager anymore)
         socket.on("fjclue", (data) => {
              document.getElementById("fjWager").style.display = "none";
         });
-
+        // when FJ starts (you can't change your wager anymore, but you can respond now)
         socket.on("fjstart", () => {
             document.getElementById("fjWager").style.display = "none";
             document.getElementById("fjResponse").style.display = "block";
         });
-
+        // when FJ ends (you can't change your wager or response anymore)
         socket.on("fjend", () => {
             document.getElementById("fjResponse").style.display = "none";
         });
 
-
-        document.getElementById("buzz").addEventListener("click", () => {
-            socket.emit("buzz");
+        // if your wager is invalid, alert the user and clear the field
+            socket.on("fjWagerInvalid", (data) => {
+            alert(data); 
+            document.getElementById("fjWagerInput").value = "";
         });
-
+        // if rounds are 1 or 2 (jeopardy or double jeopardy), you can buzz. Hide FJ stuff
+        socket.on("round", (data) => {
+            if (data == 1 || data == 2) {
+                document.getElementById("buzzer").style.display = "block";
+                document.getElementById("fjWager").style.display = "none";
+                document.getElementById("fjResponse").style.display = "none";
+            }
+        });
+        // if you disconnect, hide everything else and show disconnection message
         socket.on("disconnect", () => {
+            // hide everything else
+            document.getElementById("name").style.display = "none";
+            document.getElementById("buzzer").style.display = "none";
+            document.getElementById("fjWager").style.display = "none";
+            document.getElementById("fjResponse").style.display = "none";
+
             document.getElementById("disconnection").style.display = "block";
         });
 
-        socket.on("fjWagerInvalid", (data) => {alert(data); document.getElementById("fjWagerInput").value = "";});
+        // when buzzer clicked, let server know
+        document.getElementById("buzz").addEventListener("click", () => {
+            socket.emit("buzz");
+        });
+        // get room id and join room on server
+        var roomId = new Number(prompt("what room ID would you like to join?"));
+        socket.emit("setup", { type: "player", roomid: roomId });
     </script>
 
 </body>

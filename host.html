@@ -7,10 +7,11 @@
         integrity="sha512-zpbTFOStBclqD3+SaV5Uz1WAKh9d2/vOtaFYpSLkosymyJKnO+M4vu2CK2U4ZjkRCJ7+RvLnISpNrCfJki5JXA=="
         crossorigin="anonymous" referrerpolicy="no-referrer" />
     <style>
+        /* make clue text easier to read */
         #clue {
             font-family: monospace;
         }
-
+        /* define column widths of the final jeopardy info table */
         #fjInfo {
             table-layout: fixed;
             width: 100%;
@@ -39,11 +40,13 @@
         <div class="row">
             <div class="col-11">
                 <h6><i>Jeopardy!</i> Board</h6>
+                <!-- jeopardy board -->
                 <table id="jeopardy">
 
                 </table>
             </div>
             <div class="col-1">
+                <!-- list of players -->
                 <table id="players">
 
                 </table>
@@ -51,44 +54,53 @@
         </div>
         <div class="row">
             <div class="col-10">
+                <!-- displays for the clue and answer -->
                 <h6>Clue</h6>
                 <p><i>Clue: </i><span id="clue"></span></p>
                 <p><i>Answer: </i><span id="answer"></span></p>
             </div>
             <div class="col-2">
-                <button onclick="clearClue();">Clear Clue (c)</button>
+                
+                <button onclick="clearClue();">Clear Clue</button>
             </div>
         </div>
         <div class="row">
             <div class="col-10">
                 <h6>Buzzer</h6>
+                <!-- buzzer state and adjudication -->
                 <p><i>State: </i><span id="buzzerState"></span></p>
                 <p><i>Player: </i><span id="buzzerPlayer"></span></p>
-                <button onclick="adjudicateRight();">Right (->)</button>
-                <button onclick="adjudicateWrong();">Wrong (<-)</button>
+                <button onclick="adjudicateRight();">Right</button>
+                <button onclick="adjudicateWrong();">Wrong</button>
             </div>
             <div class="col-2">
-                <button onclick="armBuzzer();">Arm (a)</button>
-                <button onclick="resetBuzzer();">Reset (r)</button>
+                <!-- various buzzer actions -->
+                <button onclick="armBuzzer();">Arm</button>
+                <button onclick="resetBuzzer();">Reset</button>
             </div>
         </div>
         <div class="row">
             <div class="col-10">
                 <h6>Final Jeopardy!</h6>
+                <!-- this holds players' wagers and responses -->
                 <table id="fjInfo">
 
                 </table>
             </div>
             <div class="col-2">
+                <!-- various final jeoparady actions-->
                 <button onclick="showFJClue();">Show FJ Clue</button>
                 <button onclick="startFJ();">Start FJ</button>
                 <button onclick="endFJ();">End FJ</button>
+                <button onclick="initFS();">Init FS</button>
             </div>
         </div>
         <div class="row">
+            <!-- changes state of the game -->
             <button onclick="jeopardy();">Jeopardy</button>
             <button onclick="doubleJeopardy();">Double Jeopardy</button>
             <button onclick="finalJeopardy();">Final Jeopardy</button>
+            <button onclick="finalScores();">Final Scores</button>
         </div>
 
     </div>
@@ -97,8 +109,12 @@
     <script src="https://cdnjs.cloudflare.com/ajax/libs/socket.io/4.6.1/socket.io.min.js"></script>
     <script src="https://unpkg.com/@popperjs/core@2"></script>
     <script src="https://unpkg.com/tippy.js@6"></script>
+    <!-- common functions -->
     <script src="common.js"></script>
     <script>
+        /* all of the functions below send things to the server, and are triggered
+        by button presses */
+        // sets the rounds
         function jeopardy() {
             socket.emit("setround", 1);
         }
@@ -109,20 +125,22 @@
         function finalJeopardy() {
             socket.emit("setround", 3);
         }
+        // starts and ends FJ!
         function startFJ() {
             socket.emit("fjstart");
         }
         function endFJ() {
             socket.emit("fjend");
         }
+        // shows FJ clue
         function showFJClue() {
             socket.emit("fjshowclue");
         }
-
+        // sets the buzzer state based on string state
         function setBuzzerState(state) {
             socket.emit("buzzerstate", { state: state });
         }
-
+        // arm or reset the buzzer
         function armBuzzer() {
             setBuzzerState("armed");
         }
@@ -130,7 +148,11 @@
         function resetBuzzer() {
             setBuzzerState("not-armed");
         }
-
+        // show the final scores screen
+        function initFS() {
+            socket.emit("finalscores", {action: "init"});
+        }
+        // adjudication buttons, send whether the player was deemed right or wrong
         function adjudicateRight() {
             socket.emit("adjudicate", { right: true });
         }
@@ -138,38 +160,46 @@
         function adjudicateWrong() {
             socket.emit("adjudicate", { right: false });
         }
+
+        // clear the clue 
+        function clearClue() {
+            socket.emit("clearclue");
+        }
+        // when we get the latest list of picked clues, turn them red
         function renderPicked(data) {
+            // for each clue...
             for (var pair in data) {
                 var pairData = data[pair];
                 var element = getClueElement(document.getElementById("jeopardy"), pairData[0], pairData[1]);
+                // make it red
                 element.children[0].style.color = "#ff0000";
                 console.log(element);
             }
         }
-
-        function clearClue() {
-            socket.emit("clearclue");
-        }
+        // establish connection to server
         var socket = io();
-        var game;
+        // when we receive a jeopardy! board, we render it
         socket.on("game", (data) => {
             renderBoard(data, document.getElementById("jeopardy"), true, (k1, k2) => {
+                // when the host clicks a clue, we sent it to the server (k1, k2 are clue IDs)
                 socket.emit("clueselected", { k1: k1, k2: k2 });
             });
-            game = data;
         });
 
+        // when we receive new scores
         socket.on("scores", (data) => {
-            console.log(data);
-        });
-
-
-        socket.on("scores", (data) => {
+            // prepare #players table for rendering the new scores
             var table = document.getElementById("players");
             emptyElement(table);
+            
+            // initial header
+            table.innerHTML = `<tr>
+                <th>Name</th>
+                <th>Score</th>
+            </tr>`;
             // for each player...
-            table.innerHTML = "<tr><th>Name</th><th>Score</th></tr>"
             for (var i = 0; i < data.length; i++) {
+                // get player
                 var player = data[i];
                 // create a row
                 var row = document.createElement("tr");
@@ -187,6 +217,7 @@
                 var removeButton = document.createElement("button");
                 removeButton.innerHTML = "X";
                 removeButton.addEventListener("click", () => {
+                    // send remove player event
                     socket.emit("removeplayer", { id: player.id });
                 });
                 removeCell.appendChild(removeButton);
@@ -197,10 +228,13 @@
                 var modifyButton = document.createElement("button");
                 modifyButton.innerHTML = "+";
                 modifyButton.addEventListener("click", () => {
-                    var input = prompt("Enter amount to modify score by");
+                    // ask user for how much to modify score
+                    var input = prompt("Enter amount to modify score by (starting with + or - relatively modifies score)");
                     if (input.charAt(0) == "-" || input.charAt == "+") {
+                        // relatively modify the score
                         socket.emit("modifyscore", { id: player.id, amount: new Number(input) });
                     } else {
+                        // absolutely set the score
                         socket.emit("setscore", { id: player.id, amount: new Number(input) });
                     }
 
@@ -215,41 +249,47 @@
             }
         });
 
+        // when we receive new FJ! info
         socket.on("fjinfo", (data) => {
-            // for each entry in data...
+            
+            // prep #fjInfo table
             var table = document.getElementById("fjInfo");
             emptyElement(table);
+            // for each entry in data...
             for (var i = 0; i < data.length; i++) {
                 var entry = data[i];
                 var row = document.createElement("tr");
 
-                // name
+                // render name
                 var nameCell = document.createElement("td");
                 nameCell.innerHTML = entry.name;
                 row.appendChild(nameCell);
 
-                // wager
+                // render wager
                 var wagerCell = document.createElement("td");
                 wagerCell.innerHTML = entry.wager;
                 row.appendChild(wagerCell);
 
-                // response
+                // render response
                 var responseCell = document.createElement("td");
                 responseCell.innerHTML = entry.response;
                 row.appendChild(responseCell);
 
-                // actions
+                // render actions
                 var actionsCell = document.createElement("td");
                 var rightButton = document.createElement("button");
                 rightButton.innerHTML = "R";
                 rightButton.addEventListener("click", () => {
-                    socket.emit("fjadjudidcate", { id: entry.id, right: true });
+                    // send right event
+                    socket.emit("fjadjudicate", { id: entry.id, right: true });
                 });
                 actionsCell.appendChild(rightButton);
+
                 var wrongButton = document.createElement("button");
                 wrongButton.innerHTML = "W";
                 wrongButton.addEventListener("click", () => {
-                    socket.emit("fjadjudidcate", { id: entry.id, right: false });
+                    // send wrong event
+                    socket.emit("fjadjudicate", { id: entry.id, right: false });
                 });
                 actionsCell.appendChild(wrongButton);
 
@@ -265,6 +305,7 @@
                 var showResponseButton = document.createElement("button");
                 showResponseButton.innerHTML = "2";
                 showResponseButton.addEventListener("click", () => {
+                    // send show response event
                     socket.emit("finalscores", { id: entry.id, action: "showresponse" });
                 });
                 actionsCell.appendChild(showResponseButton);
@@ -273,6 +314,7 @@
                 var showWagerButton = document.createElement("button");
                 showWagerButton.innerHTML = "3";
                 showWagerButton.addEventListener("click", () => {
+                    // send show wager event
                     socket.emit("finalscores", { id: entry.id, action: "showwager" });
                 });
                 actionsCell.appendChild(showWagerButton);
@@ -285,21 +327,22 @@
                 table.appendChild(row);
             }
         });
-
+        // when we receive new picked lists
         socket.on("picked", (data) => {
+            // render the picked list
             renderPicked(data);
         });
-
+        // when we get a new clue, render it
         socket.on("clue", (data) => {
             document.getElementById("clue").innerHTML = data.text;
             document.getElementById("answer").innerHTML = data.answer;
         });
-
+        // when we clear the clue, set #clue and #answer to blank
         socket.on("clearclue", () => {
             document.getElementById("clue").innerHTML = "";
             document.getElementById("answer").innerHTML = "";
         });
-
+        // set the buzzer state
         socket.on("buzzerstate", (data) => {
             document.getElementById("buzzerState").innerHTML = data.state;
             document.getElementById("buzzerPlayer").innerHTML = data.player;
@@ -307,9 +350,9 @@
 
 
 
-
-
-        socket.emit("setup", { type: "host", roomid: 1 });
+        // ask room ID and send setup signal
+        var roomId = new Number(prompt("what room ID would you like to join?"));
+        socket.emit("setup", { type: "host", roomid: roomId });
 
     </script>
 

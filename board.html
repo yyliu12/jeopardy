@@ -1,14 +1,19 @@
 <html>
 
 <head>
+
     <style>
-        html, body {
+        /* make <html> and <body> expand their max sizes so the 
+            jeopardy board can take the maximum amount of space*/
+        html,
+        body {
             margin: 0;
             padding: 0;
             height: 100%;
             width: 100%;
         }
-        /* Table styles */
+
+        /* jeopardy board styles */
         #jeopardy {
             border-collapse: collapse;
             width: 100%;
@@ -18,9 +23,13 @@
             font-family: "Arial";
 
             table-layout: fixed;
-            
-        }
 
+        }
+        /* 
+            make the table cells the same size as the screen width divided by 7--
+            We do assume that this jeopardy board has 7 categories, which is
+            how many are in a regular game.
+        */
         #jeopardy th,
         #jeopardy td {
             border: 2px solid black;
@@ -31,47 +40,53 @@
             width: calc(100vw / 7);
         }
 
-        #jeopardy tr:nth-of-type(1) > td {
+        /* The first <tr> is the category row, so the text there
+            is white (in contrast with the other rows, which are
+            the monetary values, which are in yellow */
+        #jeopardy tr:nth-of-type(1)>td {
             color: white;
         }
 
-        #jeopardy tr:not(:first-child) > td {
+        /* Set the height for non category title cells 
+            16 * 5 = 805 screen height, and the rest of the 20% will 
+            be taken up by category titles*/
+        #jeopardy tr:not(:first-child)>td {
             height: 16vh;
         }
 
-        #jeopardy tr > td {
+        /* The montetary values should be yellow */
+        #jeopardy tr>td {
             color: #c39143;
             font-size: 20px;
         }
 
-        #jeopardy th {
-            background-color: #010a78;
-            /* Jeopardy! yellow */
-            color: black;
-            font-weight: bold;
-        }
-
-        #jeopardy td {
+        /* backgrounds of the clues should be blue */
+        #jeopardy th, #jeopardy td {
             background-color: #010a78;
             color: black;
             font-weight: bold;
         }
 
+        /* stylings for the on-screen popup of clue */
         #clue {
-            /* jeopardy clue background */
+            /* jeopardy blue background */
             background-color: #010a78;
             color: white;
+
+            /* make it take up the whole screen, on top of the board*/
             height: 100%;
             width: 100%;
 
             position: absolute;
 
+            /* center items */
             display: grid;
             place-items: center;
 
-            z-index: 1; /* appear above FJ background when it appears */
+            z-index: 1; /* above the jeopardy board and above the final jeopardy banner*/
         }
 
+        /* stylings for the text in the clue popup*/
         #clueText {
             font-size: 30px;
             font-family: "Arial";
@@ -79,66 +94,133 @@
             text-align: center;
         }
 
+        /* stylings for the FJ! screen */
         #fj {
             /* Final Jeopardy background */
             background: url("fj.webp");
+            /* stretch FJ! background */
+            background-size: 100% auto;
+
+            /* make it appear on top of jeopardy board */
+            width: 100%;
+            height: 100%;
+            position: absolute;
+            z-index: 0;
+
+        }
+        /* outer container for final-scores box*/
+        #fs-outer-container {
+            /* make it appear on top of jeopardy! board*/
+            position: absolute;
             width: 100%;
             height: 100%;
 
-            position: absolute;
-            z-index: 0;
-            background-size: 100% auto;
+            z-index: 2;
+
+            color: white;
+            /* center things that are in it*/
+            display: grid;
+            place-items: center;
+        }
+        /* take up half of the width of screen, and make it the blue jeopardy background*/
+        #fs-container {
+
+            width: 50vw;
+
+            background: #010a78;
+
+            font-family: "Arial";
+        }
+
+        /* make name, wager, and responses transition opacity*/
+        #fs-name,
+        #fs-wager,
+        #fs-response {
+            transition: opacity 1s;
         }
     </style>
 </head>
 
 <body>
-    <div id="clue"><p id="clueText">this is a sample clue text</p></div>
+    <!-- clue popup HTML -->
+    <div id="clue">
+        <p id="clueText">this is a sample clue text</p>
+    </div>
+    <!-- div for the FJ! screen-- just an image background-->
     <div id="fj"></div>
+    <!-- Final scores screen -->
+    <div id="fs-outer-container">
+        <div id="fs-container" style="display: none;">
+            <div id="fs-inner">
+                <h1>Final <i>Jeopardy!</i>:</h1>
+                <!-- places for players' name, response and wager-->
+                <p id="fs-name"></p>
+                <p id="fs-response"></p>
+                <p id="fs-wager"></p>
+            </div>
+        </div>
+    </div>
+    <!-- actual jeopardy board -->
     <table id="jeopardy">
 
     </table>
     <!-- socket.io -->
     <script src="https://cdnjs.cloudflare.com/ajax/libs/socket.io/4.6.1/socket.io.min.js"></script>
+    <!-- common functions -->
     <script src="common.js"></script>
     <script>
+        /* this creates a transform string for use in css based on its numerical parameters*/
         function genClueTransform(scaleX, scaleY, translateX, translateY) {
             return `translate(${translateX}px, ${translateY}px) scale(${scaleX}, ${scaleY})`;
         }
+        /* k1, k2 = what clue
+            text = what to put in clue,
+            boundingBox (optional) = override the where the monetary display for the clue is if need be  */
         function animClue(k1, k2, text, boundingBox) {
+            // either get the bounding box of the clue mentioned in k1 or k2, or use boundingBox specified
             var boundingBox = boundingBox ? boundingBox : getClueElement(document.getElementById("jeopardy"), k1, k2).getBoundingClientRect();
+            // set clue text
             var clue = document.getElementById("clue");
             document.getElementById("clueText").innerHTML = text;
 
-
+            // define initial transforms--align the clue on top of the
+            // monetary value on the board itself
             let scaleX = boundingBox.width / window.innerWidth;
             let scaleY = boundingBox.height / window.innerHeight;
             let translateX = -(window.innerWidth / 2) + (boundingBox.left + boundingBox.right) / 2;
             let translateY = -(window.innerHeight / 2) + (boundingBox.top + boundingBox.bottom) / 2;
-
+            // set the transform string
             clue.style.transform = genClueTransform(scaleX, scaleY, translateX, translateY);
-            
+            // now that the transform is set, we are ready
+            // to display the clue. show it!
             showClue();
-
+            // remember how far into the animation we are
             let animProgress = 0;
             function animate() {
+                // if we are done (or overdone) then set the transform to make the clue full screen
                 if (animProgress >= 1) {
                     clue.style.transform = genClueTransform(1, 1, 0, 0);
                     return;
                 }
+                // take weighted averages depending on animProgess between the transforms
+                // for the clue being on the monetary value display on the board and being
+                // full screen
                 var newScaleX = (1 * (animProgress)) + (scaleX * (1 - animProgress));
                 var newScaleY = (1 * (animProgress)) + (scaleY * (1 - animProgress));
                 var newTranslateX = (0 * (animProgress)) + (translateX * (1 - animProgress));
                 var newTranslateY = (0 * (animProgress)) + (translateY * (1 - animProgress));
-
+                // apply the transform
                 clue.style.transform = genClueTransform(newScaleX, newScaleY, newTranslateX, newTranslateY);
+                // increment animProgress
                 animProgress += 0.03;
+                // request another frame
                 requestAnimationFrame(animate);
             }
+            // ask the browser for an animation frame
             requestAnimationFrame(animate);
 
         }
-
+        // hide and shows clues
         function hideClue() {
             document.getElementById("clue").style.display = "none";
         }
@@ -146,7 +228,7 @@
         function showClue() {
             document.getElementById("clue").style.display = "grid";
         }
-
+        // this hides everything that has been picked
         function renderPicked(data) {
             for (var pair in data) {
                 var pairData = data[pair];
@@ -154,7 +236,7 @@
                 element.innerHTML = "";
             }
         }
-
+        // this shows and hides the final jeopardy! screen
         function showFJ() {
             document.getElementById("fj").style.display = "block";
         }
@@ -162,24 +244,38 @@
         function hideFJ() {
             document.getElementById("fj").style.display = "none";
         }
+        // this shows and hides the final scores screen
+        function showFS() {
+            document.getElementById("fs-container").style.display = "grid";
+        }
 
+        function hideFS() {
+            document.getElementById("fs-container").style.display = "none";
+        }
+        // initially, the clue should be hidden to show the board
         hideClue();
-        
 
+        // connect to server
         var socket = io();
+        // when we receive a clue, then animate it on screen
         socket.on("clue", (data) => {
             animClue(data.k1, data.k2, data.text);
         });
-
+        // when we render a jeopardy! board, then we make sure to
+        // hide the final scores and jeopardy! screens so we can
+        // actually see the board
         socket.on("game", (data) => {
+            hideFS();
             hideFJ();
-            renderBoard(data, document.getElementById("jeopardy"), false, () => {});
+            renderBoard(data, document.getElementById("jeopardy"), false, () => { });
         });
-
+        // when we begin final jeopardy!, make sure FJ! screen is visible
         socket.on("fjinit", () => {
+            hideFS();
             showFJ();
         });
-
+        // when we receive the FJ! clue, we animate the clue from the center
+        // of the screen, overriding the boundingBox that animClue uses by default
         socket.on("fjclue", (data) => {
             animClue(0, 0, data, {
                 width: 0,
@@ -192,18 +288,51 @@
         });
 
         socket.on("finalscores", (data) => {
-            console.log(data);
+            // what are we doing?
+            switch (data.action) {
+                // initializing final score--simply showing the "Final Scores" box
+                case "init":
+                    // make sure evrything else is clear
+                    document.getElementById("fs-name").innerHTML = "";
+                    document.getElementById("fs-wager").innerHTML = "";
+                    document.getElementById("fs-response").innerHTML = "";
+                    document.getElementById("fs-name").style.opacity = 0;
+                    document.getElementById("fs-wager").style.opacity = 0;
+                    document.getElementById("fs-response").style.opacity = 0;
+                    // make sure screen is visible
+                    showFS();
+                    break;
+                // each of the following simply sets the appropriate value
+                // to the received value, and makes the opacity 1
+                case "showname":
+                    
+                    document.getElementById("fs-name").innerHTML = data.name;
+                    document.getElementById("fs-name").style.opacity = 1;
+                    break;
+                case "showwager":
+                    document.getElementById("fs-wager").innerHTML = data.wager;
+                    document.getElementById("fs-wager").style.opacity = 1;
+                    break;
+                case "showresponse":
+                    document.getElementById("fs-response").innerHTML = data.response;
+                    document.getElementById("fs-response").style.opacity = 1;
+                    break;
+            }
         });
-
+        // when we received an update list of what clues have been picked
+        // render that
         socket.on("picked", (data) => {
             renderPicked(data);
         });
-
+        // when we are requested to make the clue go offscreen,
+        // we make it go offscreen using hideClue();
         socket.on("clearclue", () => {
             hideClue();
         });
-
-        socket.emit("setup", { type: "board", roomid: 1 });
+        // ask user what room ID they want to join, and send the setup
+        // signal to the server.
+        var roomId = new Number(prompt("what room ID would you like to join?"));
+        socket.emit("setup", { type: "board", roomid: roomId });
 
     </script>
 
